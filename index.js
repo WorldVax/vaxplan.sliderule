@@ -7,32 +7,14 @@ console.describe = console.describe || function(target, useDir) {
 		for(var i = 0; i < target.length; i++) {
 			console.describe(target[i]);
 		}
-		return;
+		return target;
 	} else if(!target || !target.describe) {
 		logFunc(target);
-		return;
+		return target;
 	}
 	logFunc(target.describe());
+	return target;
 }
-
-// function ArrayUtil(source) {
-// 	this.source = source || [];
-// }
-
-// ArrayUtil.prototype.firstOrDefault = function(searchFunc, defaultValue) {
-// 	searchFunc = searchFunc || function(item) { return true; };
-// 	var result = this.source.find(searchFunc) || defaultValue;
-// 	return result;
-// }
-
-// ArrayUtil.prototype.lastOrDefault = function(searchFunc, defaultValue) {
-// 	searchFunc = searchFunc || function(item) { return true; };
-// 	var result;
-// 	for(var i = this.source.length; i >= 0; i--) {
-// 		if(searchFunc(this.source[i])) return this.source[i];
-// 	}
-// 	return defaultValue;
-// }
 
 Date.TICKS_IN_A_DAY = (24 * 60 * 60 * 1000);
 
@@ -46,8 +28,8 @@ Date.prototype.copy = function(newLabel) {
 var diffInDays = function(date1, date2) {
 	var workDate1 = date1.copy(),
 		workDate2 = date2.copy();
-	var diff = (workDate2 - workDate1) / Date.TICKS_IN_A_DAY;
-	console.log(workDate2.describe() + '-' + workDate1.describe() + ' = ' + diff + ' days');
+	var diff = new Number((workDate2 - workDate1) / Date.TICKS_IN_A_DAY);
+	diff.describe = function() { return workDate2.describe() + '-' + workDate1.describe() + ' = ' + diff + ' days'; };
 	return diff;
 };
 
@@ -78,14 +60,23 @@ var parseTimeSpan = function(timeSpanText) {
 	return parsedTimeSpan;
 }
 
+function unfiltered(item) { return item; }
+function alwaysTrue() { return true; }
+function isFunction(item) { return typeof item === "function"; }
+function defaultIfMissing(defaultValue) { return function(value) { return value || defaultValue; } }
+//function defaultReturner(defaultValue) { return function() { return defaultValue; }; }
+
 function makeTimeSpanArray(source, keySequence) {
 	keySequence = keySequence || [];
 	var result = [];
 	keySequence.forEach(function(item) {
+		// if an array is passed, the first element is the original property name, and the second element is the remapped property name
 		var remapped = (Array.isArray(item) && item.length >= 1);
 		var sourceKey = remapped ? item[0] : item,
-			resultKey = remapped ? item[1] : item;
-		var mappedEntry = { name: resultKey, timeSpan: source[sourceKey] };
+			resultKey = remapped ? item[1] : item,
+			filterFunc = (remapped && item[2] && (isFunction(item[2]) ? item[2] : defaultIfMissing(item[2]))) || unfiltered,
+			timeSpanText = filterFunc(source[sourceKey]);
+		var mappedEntry = { name: resultKey, timeSpan: timeSpanText };
 		result.push(mappedEntry);
 	});
 	return result;
@@ -143,23 +134,24 @@ TimeSpan.prototype.describe = function() {
 	return this.formatted;
 }
 
-TimeSpan.ZERO = new TimeSpan("0 days");
+TimeSpan.UNREACHABLE_AGE = new TimeSpan("999 years", "UNREACHABLE AGE");
 
-TimeSpan.fromDays = function(quantity, label) {
-	return quantity ? new TimeSpan(quantity + " days", label) : TimeSpan.ZERO;
-};
+// TimeSpan.ZERO = new TimeSpan("0 days", "ZERO");
+// TimeSpan.fromDays = function(quantity, label) {
+// 	return quantity ? new TimeSpan(quantity + " days", label) : TimeSpan.ZERO;
+// };
 
-TimeSpan.fromWeeks = function(quantity, label) {
-	return quantity ? new TimeSpan(quantity + " weeks", label) : TimeSpan.ZERO;
-};
+// TimeSpan.fromWeeks = function(quantity, label) {
+// 	return quantity ? new TimeSpan(quantity + " weeks", label) : TimeSpan.ZERO;
+// };
 
-TimeSpan.fromMonths = function(quantity, label) {
-	return quantity ? new TimeSpan(quantity + " months", label) : TimeSpan.ZERO;
-};
+// TimeSpan.fromMonths = function(quantity, label) {
+// 	return quantity ? new TimeSpan(quantity + " months", label) : TimeSpan.ZERO;
+// };
 
-TimeSpan.fromYears = function(quantity, label) {
-	return quantity ? new TimeSpan(quantity + " years", label) : TimeSpan.ZERO;
-};
+// TimeSpan.fromYears = function(quantity, label) {
+// 	return quantity ? new TimeSpan(quantity + " years", label) : TimeSpan.ZERO;
+// };
 
 Date.prototype.toShortDateString = function() {
 	return new Date(this.valueOf()).toLocaleDateString();
@@ -178,10 +170,6 @@ Date.prototype.withLabel = function(label) {
 Date.prototype.describe = function() {
 	return "[" + (this.label && (this.label + ': ')) + this.toLocaleDateString() + "]";
 }
-
-Date.prototype.toString =  function() {
-	return this.describe();
-};
 
 Date.prototype.addTime = function(toAdd, unit, calcFunc) {
 	if(!toAdd) return this;
@@ -222,7 +210,8 @@ Date.prototype.addTimeSpan = function(timeSpan, label) {
 	return result;
 }
 
-function createDateRanges(array, rangeStartFunc, endLast) {
+function createDateRanges(array, rangeStartFunc, endLast, requireUnique) {
+	requireUnique = requireUnique || false;
 	// Example:
 	// var logicalRanges = [
 	// 	{ name: "Absolute Minimum Age", start: monthsOld2.addDays(-4, "Absolute Minimum Age") },
@@ -243,8 +232,10 @@ function createDateRanges(array, rangeStartFunc, endLast) {
 	// establish start value for each item
 	array.map(function(item) {
 		var start = rangeStartFunc(item);
-		(items.find(function(itm) { return itm.start == start; })
-		|| (items.push({ value: item, start: start })));
+		if(requireUnique && items.find(function(itm) { return itm.start == start; })) {
+			return;
+		}
+		items.push({ value: item, start: start });
 	});
 
 	// sort to ensure accurate range calculations
@@ -266,9 +257,8 @@ function createDateRanges(array, rangeStartFunc, endLast) {
 		},
 		"items": items,
 		"describe" : function() {
-			var description = items.reduce(function(previous, current, index) {
-				var currentText = current && current.value && (current.value.describe || current.value.toString)();
-				return (Array.isArray(previous) && previous || []).concat([currentText]);
+			var description = this.items.map(function(item) {
+				return (item && item.value && (item.value.describe || item.value.toString)());
 			}).join('\n');
 			return description;
 		}
@@ -282,21 +272,18 @@ function createDateRanges(array, rangeStartFunc, endLast) {
 // ************************************************** 
 
 function getTestCase(testCaseId) {
-	return testcases.find(function(item) { return item.TestCaseName == testCaseId; });
+	return testcases.find(function(item) { return (item.TestCaseName || '').trim() == (testCaseId || '').trim(); });
 }
-
-var testCase = getTestCase("Dose 1 to dose 2 interval 6 months.  Series complete. ");
-//var testCase = getTestCase();
 
 function DataShaper() {
 }
 
 DataShaper.convertTimeSpansToDateRanges = function(startDate, timeSpanArray, endLast) {
-	var dateRanges = createDateRanges(timeSpanArray.map(function(item) {
+	var mappedTimeSpans = timeSpanArray.map(function(item) {
 			item.start = startDate.addTimeSpan(item.timeSpan, item.name);
 			return item;
-		}),
-		function(item) { return item.start; }, endLast);
+		});
+	var dateRanges = createDateRanges(mappedTimeSpans, function(item) { return item.start; }, endLast);
 	dateRanges && dateRanges.items && dateRanges.items.forEach(function(item) {
 		item.value.describe = function() { return item.value.name + ' (' + item.value.timeSpan + ') => ' + item.start.toLocaleDateString() + (item.end && '..' + item.end.toLocaleDateString()); };
 	});
@@ -309,11 +296,13 @@ DataShaper.convertAgeToDateRanges = function(birthDate, age) {
 		["minAge", "Minimum Age"],
 		["earliestRecAge", "Earliest Recommended Age"],
 		["latestRecAge", "Latest Recommended Age"],
-		["max", "Maximum Age"]
+		["maxAge", "Maximum Age", TimeSpan.UNREACHABLE_AGE.source]
 	]);
 
-	// Note (JM, 12/21/2016): no endLast specified here...
-	var result = DataShaper.convertTimeSpansToDateRanges(birthDate, timeSpanArray);
+	var endLast = birthDate.addTimeSpan(TimeSpan.UNREACHABLE_AGE.source);
+
+	var result = DataShaper.convertTimeSpansToDateRanges(birthDate, timeSpanArray, endLast);
+
 	return result;
 };
 
@@ -323,7 +312,7 @@ function SeriesResolver(refdata) {
 
 SeriesResolver.getAntigenSeries = function(antigen) {
 	antigen = (antigen || '').replace(' ', '');
-	return refdata.Antigens[antigen].series.map(function(item) {
+	return refdata.AntigenSeriesByName[antigen].series.map(function(item) {
 		var result = {
 			seriesName : item.seriesName,
 			doses : item.seriesDose.map(function(seriesDose) {
@@ -332,14 +321,15 @@ SeriesResolver.getAntigenSeries = function(antigen) {
 					doseNumber : seriesDose.doseNumber,
 					age: age
 				};
-			})
+			}),
+			describe : function() { return ['Series Name: ' + this.seriesName + ' (' + this.doses.length + ' doses)'].join('\n'); }
 		};
 		return result;
 	});
 };
 
 SeriesResolver.getAntigenSeriesByCvx = function(cvx) {
-	var cvxMatch = refdata.CvxToAntigenMap[cvx];
+	var cvxMatch = refdata.AntigenSeriesByCvx[cvx];
 
 	var antigens = cvxMatch && cvxMatch.association && cvxMatch.association.map(function(item) {
 		return item.antigen;
@@ -381,24 +371,27 @@ function runTestCase(testCaseName) {
 		seriesDoses = SeriesResolver.getAntigenSeriesByCvx(firstDose && firstDose.cvx)
 		;
 
-	var firstDoseAge = seriesDoses[0].doses[0].age;
+	var firstSeries = seriesDoses[0];
+	var firstDoseAge = firstSeries.doses[0].age;
 
 	var doseAgeDateRanges = DataShaper.convertAgeToDateRanges(birthDate, firstDoseAge);
-	var doseAgeMatch = doseAgeDateRanges.find(administeredDate, "Too early timeSpan");
+	var doseAgeMatch = doseAgeDateRanges.find(administeredDate, "Too early");
 
 	console.describe([
-		'\n**********',
-		'\nPatient:', patientProfile.name,
+		'=================================================================================',
+		'| Patient: ' + patientProfile.name,
+		'=================================================================================',
 		'\nBirth Date:', patientProfile.birthDate,
 		'\nAdministered Date:', administeredDate,
+		'\nThis date best matches in the following date range:', doseAgeMatch,
+		'\nAge in Days:', birthDate.diffInDays(administeredDate),
+		'\nSelected Series:', firstSeries,
+		'\nFirst Dose Age (raw):', firstDoseAge, 
 		'\nDose Age Date Ranges:', doseAgeDateRanges,
-		'\nDose Age Match', administeredDate, doseAgeMatch,
-		'\n----------\nCVX Dose Series', seriesDoses,
-		'\n**********\n'
+		'\n\nCVX Dose Series available...', seriesDoses,
+		'\n=================================================================================\n\n',
 		]);
-
-	//var diff = birthDate.diffInDays(administeredDate);
 }
 
-var selectedTestCases = [ "DTaP # 2 at age 4 months", "Dose 1 to dose 2 interval 6 months.  Series complete. " ];
+var selectedTestCases = [ "DTaP # 2 at age 4 months", "Dose 1 to dose 2 interval 6 months.  Series complete." ];
 selectedTestCases.forEach(function(selected) { runTestCase(selected); });
