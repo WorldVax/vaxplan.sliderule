@@ -1,5 +1,7 @@
+(function() {
+
 var refdata = require("vaxplan.refdata");
-var testcases = require("vaxplan.testcases/test-cases");
+var testCases = require("vaxplan.testcases/test-cases");
 
 console.describe = console.describe || function(target, useDir) {
 	var logFunc = useDir ? console.dir : console.log;
@@ -16,22 +18,14 @@ console.describe = console.describe || function(target, useDir) {
 	return target;
 }
 
-Date.TICKS_IN_A_DAY = (24 * 60 * 60 * 1000);
+function unfiltered(item) { return item; }
+function alwaysTrue() { return true; }
+function isFunction(item) { return typeof item === "function"; }
+function defaultIfMissing(defaultValue) { return function(value) { return value || defaultValue; } }
 
-Date.prototype.copy = function(newLabel) {
-	var workDate = new Date(this.valueOf());
-	var label = (newLabel || this.label);
-	(label && (workDate.label = label));
-	return workDate;
-}
-
-var diffInDays = function(date1, date2) {
-	var workDate1 = date1.copy(),
-		workDate2 = date2.copy();
-	var diff = new Number((workDate2 - workDate1) / Date.TICKS_IN_A_DAY);
-	diff.describe = function() { return workDate2.describe() + '-' + workDate1.describe() + ' = ' + diff + ' days'; };
-	return diff;
-};
+/********************************
+ * TimeSpan
+ ********************************/
 
 var parseTimeSpan = function(timeSpanText) {
 	var timeSpanParser = /\s*([+-]?(?:\s*)\d+)\s*([Dd](?:(?:ays?)?)|[Ww](?:(?:eeks?)?)|[Mm](?:(?:onths?)?)|[Yy](?:(?:ears?)?))\s*,?\s*/gi;
@@ -59,12 +53,6 @@ var parseTimeSpan = function(timeSpanText) {
 
 	return parsedTimeSpan;
 }
-
-function unfiltered(item) { return item; }
-function alwaysTrue() { return true; }
-function isFunction(item) { return typeof item === "function"; }
-function defaultIfMissing(defaultValue) { return function(value) { return value || defaultValue; } }
-//function defaultReturner(defaultValue) { return function() { return defaultValue; }; }
 
 function makeTimeSpanArray(source, keySequence) {
 	keySequence = keySequence || [];
@@ -136,22 +124,26 @@ TimeSpan.prototype.describe = function() {
 
 TimeSpan.UNREACHABLE_AGE = new TimeSpan("999 years", "UNREACHABLE AGE");
 
-// TimeSpan.ZERO = new TimeSpan("0 days", "ZERO");
-// TimeSpan.fromDays = function(quantity, label) {
-// 	return quantity ? new TimeSpan(quantity + " days", label) : TimeSpan.ZERO;
-// };
+/********************************
+ * Date prototype modifications
+ ********************************/
 
-// TimeSpan.fromWeeks = function(quantity, label) {
-// 	return quantity ? new TimeSpan(quantity + " weeks", label) : TimeSpan.ZERO;
-// };
+Date.TICKS_IN_A_DAY = (24 * 60 * 60 * 1000);
 
-// TimeSpan.fromMonths = function(quantity, label) {
-// 	return quantity ? new TimeSpan(quantity + " months", label) : TimeSpan.ZERO;
-// };
+Date.prototype.copy = function(newLabel) {
+	var workDate = new Date(this.valueOf());
+	var label = (newLabel || this.label);
+	(label && (workDate.label = label));
+	return workDate;
+}
 
-// TimeSpan.fromYears = function(quantity, label) {
-// 	return quantity ? new TimeSpan(quantity + " years", label) : TimeSpan.ZERO;
-// };
+var diffInDays = function(date1, date2) {
+	var workDate1 = date1.copy(),
+		workDate2 = date2.copy();
+	var diff = new Number((workDate2 - workDate1) / Date.TICKS_IN_A_DAY);
+	diff.describe = function() { return workDate2.describe() + '-' + workDate1.describe() + ' = ' + diff + ' days'; };
+	return diff;
+};
 
 Date.prototype.toShortDateString = function() {
 	return new Date(this.valueOf()).toLocaleDateString();
@@ -163,13 +155,8 @@ Date.prototype.diffInDays = function(otherDate) {
 
 Date.prototype.withLabel = function(label) {
 	this.label = label;
-	// this.label = "[" + label + "]";
 	return this;
 };
-
-Date.prototype.describe = function() {
-	return "[" + (this.label && (this.label + ': ')) + this.toLocaleDateString() + "]";
-}
 
 Date.prototype.addTime = function(toAdd, unit, calcFunc) {
 	if(!toAdd) return this;
@@ -210,19 +197,16 @@ Date.prototype.addTimeSpan = function(timeSpan, label) {
 	return result;
 }
 
+Date.prototype.describe = function() {
+	return "[" + (this.label && (this.label + ': ')) + this.toShortDateString() + "]";
+}
+
+/************************
+ * Date Ranges
+ ************************/
+
 function createDateRanges(array, rangeStartFunc, endLast, requireUnique) {
 	requireUnique = requireUnique || false;
-	// Example:
-	// var logicalRanges = [
-	// 	{ name: "Absolute Minimum Age", start: monthsOld2.addDays(-4, "Absolute Minimum Age") },
-	// 	{ name: "Minimum Age", start: birthDate.addMonths(2) },
-	// 	{ name: "Maximum Age", start: monthsOld2.addMonths(12) }
-	// 	];
-
-	// console.dir(logicalRanges);
-
-	// var ranges = createDateRanges(logicalRanges, function(item) { return item.start; });
-	// console.dir(ranges.find(birthDate.addMonths(4)));
 
 	endLast = endLast || Date.POSITIVE_INFINITY;
 	rangeStartFunc = rangeStartFunc || function(d) { return d; };
@@ -267,16 +251,7 @@ function createDateRanges(array, rangeStartFunc, endLast, requireUnique) {
 	return result;
 }
 
-// ************************************************** 
-// * Samples
-// ************************************************** 
-
-function getTestCase(testCaseId) {
-	return testcases.find(function(item) { return (item.TestCaseName || '').trim() == (testCaseId || '').trim(); });
-}
-
-function DataShaper() {
-}
+function DataShaper() { }
 
 DataShaper.convertTimeSpansToDateRanges = function(startDate, timeSpanArray, endLast) {
 	var mappedTimeSpans = timeSpanArray.map(function(item) {
@@ -285,7 +260,7 @@ DataShaper.convertTimeSpansToDateRanges = function(startDate, timeSpanArray, end
 		});
 	var dateRanges = createDateRanges(mappedTimeSpans, function(item) { return item.start; }, endLast);
 	dateRanges && dateRanges.items && dateRanges.items.forEach(function(item) {
-		item.value.describe = function() { return item.value.name + ' (' + item.value.timeSpan + ') => ' + item.start.toLocaleDateString() + (item.end && '..' + item.end.toLocaleDateString()); };
+		item.value.describe = function() { return item.value.name + ' (' + item.value.timeSpan + ') => ' + item.start.toShortDateString() + (item.end && '..' + item.end.toShortDateString()); };
 	});
 	return dateRanges;
 };
@@ -306,9 +281,7 @@ DataShaper.convertAgeToDateRanges = function(birthDate, age) {
 	return result;
 };
 
-function SeriesResolver(refdata) {
-	//this.refdata = refdata;
-}
+function SeriesResolver() { }
 
 SeriesResolver.getAntigenSeries = function(antigen) {
 	antigen = (antigen || '').replace(' ', '');
@@ -340,10 +313,9 @@ SeriesResolver.getAntigenSeriesByCvx = function(cvx) {
 	return antigenSeries;
 };
 
-function PatientProfileBuilder() {
-}
+function PatientProfileBuilder() { }
 
-PatientProfileBuilder.fromTestCase = function (testCase) {
+PatientProfileBuilder.fromTestCase = function(testCase) {
 	var patientProfile = testCase.PatientProfile;
 
 	return {
@@ -360,8 +332,17 @@ PatientProfileBuilder.fromTestCase = function (testCase) {
 	}
 };
 
-function runTestCase(testCaseName) {
-	var testCase = getTestCase(testCaseName);
+function TestRunner() {
+
+}
+
+TestRunner.getTestCase = function(testCaseId) {
+	return testCases.find(function(item) { return (item.TestCaseName || '').trim() == (testCaseId || '').trim(); });
+};
+
+ 
+TestRunner.runTestCase = function (testCaseName) {
+	var testCase = TestRunner.getTestCase(testCaseName);
 	var patientProfile = PatientProfileBuilder.fromTestCase(testCase);
 
 	var birthDate = patientProfile.birthDate,
@@ -393,5 +374,13 @@ function runTestCase(testCaseName) {
 		]);
 }
 
+// ************************************************** 
+// * Samples
+// ************************************************** 
+
 var selectedTestCases = [ "DTaP # 2 at age 4 months", "Dose 1 to dose 2 interval 6 months.  Series complete." ];
-selectedTestCases.forEach(function(selected) { runTestCase(selected); });
+selectedTestCases.forEach(function(selected) { TestRunner.runTestCase(selected); });
+
+// Note (JM, 12/22/2016): TODO: break this up into modules with exports
+
+})();
