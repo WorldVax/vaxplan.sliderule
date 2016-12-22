@@ -1,0 +1,29 @@
+{
+  "name": "vaxplan.sliderule",
+  "version": "0.0.1",
+  "description": "Basic vaccine evaluation and forecast engine",
+  "repository": {
+    "private": "false",
+    "type": "git",
+    "url": "git://github.com/WorldVax/vaxplan.sliderule"
+  },
+  "keywords": [
+    "immunization",
+    "decision support",
+    "rule engine",
+    "decision engine"
+  ],
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "WorldVax.org",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/WorldVax/vaxplan.sliderule/issues"
+   },
+  "dependencies": {
+    "vaxplan.refdata": "github:worldvax/vaxplan.refdata",
+    "vaxplan.testcases": "github:worldvax/vaxplan.testcases"
+  }
+}
