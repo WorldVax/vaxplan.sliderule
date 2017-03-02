@@ -21,8 +21,10 @@
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/WorldVax/vaxplan.sliderule/issues"
-   },
+  },
   "dependencies": {
+    "vaxplan.core": "github:worldvax/vaxplan.core",
+    "vaxplan.dates": "github:worldvax/vaxplan.dates",
     "vaxplan.refdata": "github:worldvax/vaxplan.refdata",
     "vaxplan.testcases": "github:worldvax/vaxplan.testcases"
   }

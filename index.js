@@ -2,6 +2,8 @@
 
 var refdata = require("vaxplan.refdata");
 var testCases = require("vaxplan.testcases/test-cases");
+var vaxplan = require("vaxplan.core");
+var CdsiDate = require("vaxplan.dates");
 
 console.describe = console.describe || function(target, useDir) {
 	var logFunc = useDir ? console.dir : console.log;
